@@ -1,0 +1,131 @@
+# Cloudflare Workers config for Crimson Proxy.
+#
+# Deploy with:   npm run deploy:cf
+# Local dev:     npm run dev:cf
+#
+# This deploys the Hono backend ONLY. The React dashboard lives on
+# Cloudflare Pages as a separate project (see README → Deploying).
+#
+# Why `nodejs_compat`: lets the existing `process.env.X` reads in
+# src/server/lib/config.ts work unchanged. The vars listed under [vars]
+# below and the secrets registered with `wrangler secret put` are
+# automatically exposed on process.env.
+#
+# Why `no_handle_cross_request_promise_resolution`: the postgres.js
+# client keeps a singleton TCP socket per isolate, and the entry adapter
+# closes it via ctx.waitUntil(resetDb()) after each request. When two
+# requests land in the same isolate at once, request A's resetDb can
+# tear the socket down while request B's query is still in flight —
+# Workers then cancels request B with "promise resolved in a different
+# request context" / "code had hung." This flag tells the runtime to
+# allow those cross-request resolutions instead of cancelling, which is
+# exactly what Cloudflare's own warning recommends for this pattern.
+# It's also what lets routes/discord.ts use the deferred-response
+# pattern safely on Workers — the followup PATCH runs via
+# ctx.waitUntil after the response, and the flag keeps the runtime
+# from killing it.
+
+name = "app"
+main = "src/entry/cloudflare.ts"
+compatibility_date = "2026-05-01"
+compatibility_flags = ["nodejs_compat", "no_handle_cross_request_promise_resolution"]
+
+# ─── Non-secret config (visible in the dashboard) ─────────────────────
+# Override per-environment by adding a [env.production.vars] table.
+# Secrets (anything you wouldn't paste in a screenshot) go in `wrangler
+# secret put NAME` — they don't live in this file.
+[vars]
+PORT = "8787"
+
+# ─── Secrets (set with wrangler secret put NAME) ──────────────────────
+# Listed here as documentation. The actual values are stored encrypted by
+# Cloudflare and never appear in this file or in git.
+#
+# Always required:
+#   ADMIN_SIGNING_SECRET        - HMAC for admin JWTs
+#   DATABASE_URL                - Postgres connection string (e.g. Aiven)
+#   DISCORD_APP_ID              - used for OAuth + bot identity
+#   DISCORD_PUBLIC_KEY          - Ed25519 verify for /discord/interactions
+#   DISCORD_BOT_TOKEN           - Discord API auth
+#   DISCORD_CLIENT_SECRET       - OAuth code exchange
+#
+# Bootstrap-only (the live value comes from the `app_config` DB table once
+# seeded via /admin → Limits & Config → Global; safe to leave unset after
+# first deploy):
+#   DISCORD_SERVER_ID
+#   DISCORD_REQUIRED_ROLE_ID
+#   DISCORD_ADMIN_ROLE_IDS
+#   DISCORD_STAFF_CHANNEL_ID
+
+# ─── Observability ────────────────────────────────────────────────────
+# Workers Logs (free tier: 200k events/day, 3 day retention) — see them
+# at https://dash.cloudflare.com → Workers → app → Logs.
+[observability]
+enabled = true
+
+# ─── Hyperdrive (Postgres connection pooler) ──────────────────────────
+# Without Hyperdrive each Worker invocation opens a fresh TCP connection
+# to Aiven. Aiven free tier caps at 20 simultaneous connections; under
+# bursty traffic that ceiling is easy to brush against.
+#
+# Hyperdrive pools and caches Postgres connections at the Cloudflare
+# edge so Worker → Hyperdrive → Aiven uses far fewer actual sessions.
+# Free tier allows 100k queries/day, more than enough for hobby scale.
+#
+# ─── origin_connection_limit ─────────────────────────────────────────
+# Hyperdrive keeps its pool warm 24/7 — those slots stay reserved at
+# Aiven even when zero people are hitting the Worker. Default is 20,
+# which is the entire Aiven free-tier cap — leaves zero slots for the
+# Vercel mirror, leading to "no models" (registry can't load providers,
+# falls back to the mock-only snapshot).
+#
+# 9 caps Hyperdrive at ~45% of Aiven's free-tier cap, leaving the other
+# ~11 slots for the Vercel mirror plus ad-hoc psql sessions. While on a
+# higher plan (e.g. the 200-connection trial) this is moot — Hyperdrive
+# at 9 still works the same, just with much more headroom everywhere.
+#
+# Inspect or change with:
+#   npx wrangler hyperdrive list
+#   npx wrangler hyperdrive update <id> --origin-connection-limit <n>
+#
+# (Not settable in wrangler.toml — manage on the Hyperdrive config itself.)
+#
+# ─── DO NOT disable this binding on Cloudflare ────────────────────────
+# Without Hyperdrive, every Postgres query is its own outgoing TCP
+# connection from the Worker, and Cloudflare counts each one as a
+# "subrequest." The per-invocation cap (50 on free, 1000 on paid) is
+# blown after just a handful of queries — a single dashboard page load
+# easily fires 10-20 queries (config + limits + registry + roles + …)
+# plus the entry-adapter's resetDb opens a fresh socket on every
+# request, so the cap is hit almost immediately and queries start
+# failing with "Too many subrequests by single Worker invocation,"
+# which surfaces as empty model lists, blank dashboards, and
+# CONNECTION_DESTROYED errors in the tail. Hyperdrive sidesteps all of
+# this because its connection multiplexing isn't billed as subrequests
+# the same way. Vercel doesn't have this limit, so the direct path is
+# fine there.
+[[hyperdrive]]
+binding = "HYPERDRIVE"
+id = "4b8f38e87dde40b3b3628418ca134f99"
+
+# ─── Static assets (React dashboard) ──────────────────────────────────
+# `npm run build` compiles the React app to dist/. Wrangler ships
+# dist/ alongside the Worker code. Routing per request:
+#   1. If the path starts with an API prefix (`run_worker_first`), the
+#      request always goes to the Hono Worker (no asset lookup).
+#   2. Otherwise the asset router tries dist/<path>; if found, served
+#      from the edge for free (doesn't count against the 100k/day
+#      Worker invocation limit).
+#   3. If the asset isn't found, `single-page-application` rewrites
+#      to /index.html so client-side router paths (/login, /admin,
+#      /dashboard, /status) work — same as Vercel's SPA fallback.
+[assets]
+directory = "./dist"
+not_found_handling = "single-page-application"
+binding = "ASSETS"
+run_worker_first = [
+  "/health",
+  "/api/*",
+  "/v1/*",
+  "/discord/*",
+]

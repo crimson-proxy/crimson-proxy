@@ -1,0 +1,38 @@
+{
+  // GitHub Codespaces / VS Code Dev Container config for Crimson Proxy.
+  // Opening this repo in a Codespace builds a ready-to-run Node environment.
+  //
+  // Runtime secrets (DATABASE_URL, the DISCORD_* values, ADMIN_SIGNING_SECRET)
+  // are NOT stored here — add them as Codespaces secrets in GitHub:
+  //   Settings -> Codespaces -> Repository secrets.
+  // On each start, .devcontainer/setup-env.sh writes .env and .dev.vars from
+  // those secrets, so `npm run dev:server` / `dev:cf` / `migrate` all work.
+  "name": "Crimson Proxy",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:22",
+
+  // gh CLI (PRs/issues on the private repo). wrangler comes from the project
+  // devDependency; vercel + psql + AI CLIs are installed in post-create.sh.
+  "features": {
+    "ghcr.io/devcontainers/features/github-cli:1": {}
+  },
+
+  // post-create: once, on build — deps + CLIs (see .devcontainer/post-create.sh).
+  // post-start: every start — regenerate .env / .dev.vars from secrets.
+  "postCreateCommand": "bash .devcontainer/post-create.sh",
+  "postStartCommand": "bash .devcontainer/setup-env.sh",
+
+  // Dev-server ports (see README -> "Two local test setups").
+  // 8787 (wrangler dev) auto-starts via .vscode/tasks.json on folder open.
+  "forwardPorts": [3000, 5173, 8787],
+  "portsAttributes": {
+    "3000": { "label": "backend  - npm run dev:server" },
+    "5173": { "label": "frontend - npm run dev (Vite)" },
+    "8787": { "label": "cloudflare - npm run dev:cf (wrangler)" }
+  },
+
+  "customizations": {
+    "vscode": {
+      "extensions": ["bradlc.vscode-tailwindcss"]
+    }
+  }
+}
