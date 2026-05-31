@@ -1,0 +1,21 @@
+{
+  // Auto-starts the Cloudflare local dev server (wrangler dev on :8787) in a
+  // dedicated terminal when the folder opens in a Codespace / VS Code. The
+  // devcontainer's postStartCommand has already regenerated .dev.vars from
+  // Codespaces secrets by the time this runs, so dev:cf has its env.
+  //
+  // Don't want it? Comment out runOptions.runOn below — the task stays
+  // available to run manually from Terminal -> Run Task.
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "dev:cf (auto)",
+      "type": "shell",
+      "command": "npm run dev:cf",
+      "isBackground": true,
+      "presentation": { "reveal": "always", "panel": "dedicated" },
+      "runOptions": { "runOn": "folderOpen" },
+      "problemMatcher": []
+    }
+  ]
+}

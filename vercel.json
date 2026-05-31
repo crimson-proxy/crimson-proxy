@@ -1,0 +1,22 @@
+{
+  "version": 2,
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "rewrites": [
+    { "source": "/health", "destination": "/api/index" },
+    { "source": "/v1/(.*)", "destination": "/api/index" },
+    { "source": "/api/logs", "destination": "/api/index" },
+    { "source": "/api/models", "destination": "/api/index" },
+    { "source": "/api/keys", "destination": "/api/index" },
+    { "source": "/api/status", "destination": "/api/index" },
+    { "source": "/api/me/(.*)", "destination": "/api/index" },
+    { "source": "/api/user/(.*)", "destination": "/api/index" },
+    { "source": "/api/admin/(.*)", "destination": "/api/index" },
+    { "source": "/api/auth/(.*)", "destination": "/api/index" },
+    { "source": "/discord/(.*)", "destination": "/api/index" },
+    { "source": "/login", "destination": "/" },
+    { "source": "/dashboard", "destination": "/" },
+    { "source": "/admin", "destination": "/" },
+    { "source": "/status", "destination": "/" }
+  ]
+}

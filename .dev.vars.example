@@ -1,0 +1,34 @@
+# Local secrets for `npm run dev:cf` (Cloudflare Workers local dev).
+# Gitignored. Mirrors .env so the Cloudflare entry behaves identically to
+# Node/Vercel locally.
+#
+# ─── SYNC RULE ────────────────────────────────────────────────────────
+# Must mirror .env. Any change here also goes to .env, Vercel
+# (`vercel env add NAME production --force`), and Cloudflare
+# (`wrangler secret put NAME`). See README "Env var sync rule".
+#
+# EXCEPTION — the CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_*
+# variable below is wrangler-CLI-only and does NOT need to be synced
+# to .env, Vercel, or Cloudflare prod. See its comment.
+
+ADMIN_SIGNING_SECRET=
+
+DATABASE_URL=
+
+# ─── Cloudflare-LOCAL-only (do not sync to .env / Vercel / Cloudflare) ──
+# Tells `wrangler dev` what Postgres URL to use when faking the
+# HYPERDRIVE binding on your laptop (it can't reach the real edge
+# Hyperdrive). Format is CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_<binding>.
+# Same Aiven URL as DATABASE_URL above. In production the real
+# Hyperdrive binding takes over and this var is ignored — so it's not
+# in .env, not on Vercel, and not a wrangler secret.
+CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE=
+
+DISCORD_APP_ID=
+DISCORD_PUBLIC_KEY=
+DISCORD_BOT_TOKEN=
+DISCORD_SERVER_ID=
+DISCORD_REQUIRED_ROLE_ID=
+DISCORD_ADMIN_ROLE_IDS=
+DISCORD_CLIENT_SECRET=
+DISCORD_STAFF_CHANNEL_ID=
