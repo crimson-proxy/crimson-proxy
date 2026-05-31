@@ -1,0 +1,32 @@
+# Dependencies
+node_modules/
+
+# Environment variables (contains API keys!)
+.env
+.dev.vars
+
+# Cloudflare Workers build/state cache
+.wrangler/
+
+# Build output
+dist/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Database backups (contain user data / key hashes!)
+backups/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/*
+# ...but commit the auto-start task so Codespaces launches dev:cf on open.
+!.vscode/tasks.json
+.idea/
+*.swp
+*.swo
+.vercel
