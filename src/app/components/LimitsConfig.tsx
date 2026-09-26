@@ -747,6 +747,7 @@ function ProviderCard({
   const [headers, setHeaders] = useState(headersToText(initial.extra_headers));
   const [saving, setSaving] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [bulkToggling, setBulkToggling] = useState(false);
   const [testing, setTesting] = useState(false);
   const [showModels, setShowModels] = useState(false);
   // Live progress while the per-model probe loop is running. null when
@@ -851,6 +852,48 @@ function ProviderCard({
       } else toast.error(data.error ?? "Refresh failed");
     } finally {
       setRefreshing(false);
+    }
+  };
+
+  const bulkToggleModels = async (enabled: boolean) => {
+    const list = await api(`/api/admin/providers/${p.id}/models`, "GET");
+    if (!list.ok) {
+      toast.error(list.data.error ?? "Couldn't load model list");
+      return;
+    }
+
+    const models = (list.data.models ?? []) as ProviderModel[];
+    const targets = models.filter((m) => m.enabled !== enabled);
+    if (targets.length === 0) {
+      toast.info(
+        enabled ? "All models are already enabled." : "All models are already disabled.",
+      );
+      return;
+    }
+
+    setBulkToggling(true);
+    try {
+      let ok = 0;
+      for (const m of targets) {
+        const res = await api(
+          `/api/admin/provider-models/${m.id}`,
+          "PATCH",
+          { display_name: m.display_name, enabled },
+        );
+        if (res.ok) ok++;
+      }
+
+      if (ok === targets.length) {
+        toast.success(
+          `${enabled ? "Enabled" : "Disabled"} ${ok} model${ok === 1 ? "" : "s"}`,
+        );
+      } else {
+        toast.error(`${ok}/${targets.length} saved — reloading`);
+      }
+
+      onChanged();
+    } finally {
+      setBulkToggling(false);
     }
   };
 
@@ -1092,6 +1135,22 @@ function ProviderCard({
               design, see comment above. */}
           {!builtin && isOwner && (
             <>
+              <button
+                className={btnGhost}
+                onClick={() => bulkToggleModels(true)}
+                disabled={refreshing || testing || bulkToggling}
+                title="Enable every model on this provider"
+              >
+                Select all
+              </button>
+              <button
+                className={btnGhost}
+                onClick={() => bulkToggleModels(false)}
+                disabled={refreshing || testing || bulkToggling}
+                title="Disable every model on this provider"
+              >
+                Deselect all
+              </button>
               <button
                 className={btnGhost}
                 onClick={refresh}
