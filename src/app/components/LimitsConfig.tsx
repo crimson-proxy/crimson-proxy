@@ -531,6 +531,7 @@ function ModelCatalog({
   const [models, setModels] = useState<ProviderModel[] | null>(null);
   const [filter, setFilter] = useState("");
   const [savingId, setSavingId] = useState<number | null>(null);
+  const [bulkBusy, setBulkBusy] = useState(false);
 
   const load = async () => {
     const { ok, data } = await api(
@@ -579,6 +580,40 @@ function ModelCatalog({
       m.upstream_id.toLowerCase().includes(filter.toLowerCase()),
   );
 
+  // Bulk toggle over whatever the filter currently shows — lets an owner
+  // narrow with the filter box, then flip just that subset on/off instead
+  // of clicking every row. Only rows whose `enabled` differs from the
+  // target are touched (and saved), so this stays cheap and idempotent.
+  const setAllShown = async (enabled: boolean) => {
+    const targets = shown.filter((m) => m.enabled !== enabled);
+    if (targets.length === 0) return;
+    setBulkBusy(true);
+    try {
+      let ok = 0;
+      for (const m of targets) {
+        const res = await api(
+          `/api/admin/provider-models/${m.id}`,
+          "PATCH",
+          { display_name: m.display_name, enabled },
+        );
+        if (res.ok) {
+          ok++;
+          setLocal(m.id, { enabled });
+        }
+      }
+      if (ok === targets.length) {
+        toast.success(
+          `${enabled ? "Enabled" : "Disabled"} ${ok} model${ok === 1 ? "" : "s"}`,
+        );
+      } else {
+        toast.error(`${ok}/${targets.length} saved — reloading`);
+        load();
+      }
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+
   return (
     <div className="bg-muted/40 border-t-2 border-border px-4 py-4 space-y-3">
       <div className="flex items-center justify-between gap-3 flex-wrap">
@@ -594,12 +629,36 @@ function ModelCatalog({
             <>Read-only — only the provider's owner can edit this catalog.</>
           )}
         </p>
-        <input
-          className={numCls + " !w-40"}
-          placeholder="filter…"
-          value={filter}
-          onChange={(e) => setFilter(e.target.value)}
-        />
+        <div className="flex items-center gap-2">
+          <input
+            className={numCls + " !w-40"}
+            placeholder="filter…"
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+          />
+          {isOwner && (
+            <>
+              <button
+                type="button"
+                className="text-xs px-2 py-1 rounded border border-border hover:bg-accent disabled:opacity-50"
+                disabled={bulkBusy || shown.length === 0}
+                title="Enable every model currently shown by the filter above"
+                onClick={() => setAllShown(true)}
+              >
+                Select all
+              </button>
+              <button
+                type="button"
+                className="text-xs px-2 py-1 rounded border border-border hover:bg-accent disabled:opacity-50"
+                disabled={bulkBusy || shown.length === 0}
+                title="Disable every model currently shown by the filter above"
+                onClick={() => setAllShown(false)}
+              >
+                Deselect all
+              </button>
+            </>
+          )}
+        </div>
       </div>
 
       <div className="max-h-80 overflow-y-auto rounded-lg border border-border">
